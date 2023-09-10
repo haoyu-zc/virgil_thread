@@ -1,0 +1,26 @@
+// Race condition test
+
+class Inc(out: string -> void) {
+	def run() {
+		for (i < 10000) {
+			// bug: dead lock
+			m.lock();
+			counter++;
+			m.unlock();
+		}
+	}
+}
+
+var i1 = Inc.new(System.puts);
+var i2 = Inc.new(System.puts);
+var i3 = Inc.new(System.puts);
+
+var counter: int = 0;
+var m = Mutex.new();
+
+def main() {
+	Thread.create(i2.run);
+	Thread.create(i3.run);
+	i1.run();
+	System.puti(counter);
+}

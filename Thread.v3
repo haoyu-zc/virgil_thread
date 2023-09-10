@@ -1,0 +1,68 @@
+component Thread {
+	// Syscall number for clone
+	def SYS_clone = 56;
+	// Flags for sys_clone
+	def CLONE_VM = 0x00000100;
+	def CLONE_SIGHAND = 0x00000800;
+	def CLONE_PARENT = 0x00008000;
+	def CLONE_THREAD = 0x00010000;
+	// Stack size
+	def STACK_SIZE = 1048676u;
+	// Global function pointer
+	var func: void -> void;
+
+	def create (f: void -> void) {
+		clone(f);
+	}
+
+	private def mmap() -> (Pointer, Pointer) {
+		var prot = LinuxConst.PROT_READ | LinuxConst.PROT_WRITE;
+		var flags = LinuxConst.MAP_PRIVATE | LinuxConst.MAP_ANONYMOUS;
+		var r = Linux.syscall(LinuxConst.SYS_mmap, (Pointer.NULL, STACK_SIZE, prot, flags, 0, 0));
+		if (r.0 == -1) return(Pointer.NULL, Pointer.NULL);
+		var start = Pointer.NULL + r.0, end = start + i64.view(STACK_SIZE);
+		return (start, end);
+	}
+
+	private def clone(f: void -> void) {
+		var range = mmap();
+		if (range.0 == Pointer.NULL) System.error("ThreadError", "Linux.syscall(sys_mmap) failed.");;
+		var stackTop = range.1;
+		
+		func = f;
+		var tid_buf: Array<int> = [
+			0x00000000,	// parent_tid
+			0x00000000	// child_tid
+		];
+		var t = Linux.syscall(SYS_clone,
+			(CLONE_VM | CLONE_SIGHAND | CLONE_PARENT | CLONE_THREAD,
+			stackTop,
+			Pointer.atContents(tid_buf),
+			Pointer.atContents(tid_buf) + 4,
+			0));
+
+		if (t.0 < 0) System.error("ThreadError", "Linux.syscall(sys_clone) failed.");
+		if (t.0 == 0) {
+			f = func;
+			func = null;
+			f();
+			Linux.syscall(LinuxConst.SYS_exit, 0);
+		} else {
+			// TODO: can only spawn one thread at a time due to global func
+			while (func != null);
+		}
+	}
+}
+
+class Mutex {
+	private var locked: int = 0;
+
+	def lock() {
+		var p: Pointer = Pointer.atField(this.locked);
+		while (!p.cmpswp(0, 1));
+	}
+
+	def unlock() {
+		locked = 0;
+	}
+}

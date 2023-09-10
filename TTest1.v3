@@ -1,0 +1,20 @@
+// Thread creation test
+
+class Printer(str: string, out: string -> void) {
+	def run() {
+		for (i < 1000) {
+			out(str);
+			for (j < 1000000) ;
+		}
+	}
+}
+
+var print1 = Printer.new("#1 ", System.puts);
+var print2 = Printer.new("#2 ", System.puts);
+var print3 = Printer.new("#3 ", System.puts);
+
+def main() {
+	Thread.create(print2.run);
+	Thread.create(print3.run);
+	print1.run();
+}
